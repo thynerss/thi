@@ -21,8 +21,9 @@ $pendingTopUps = array_slice(getAllTopUps(), 0, 5);
     <title>Admin Dashboard - VPS & Proxy Việt Nam</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        body { font-family: 'Inter', sans-serif; }
         .gradient-bg { background: linear-gradient(135deg, #1e3a8a 0%, #3730a3 50%, #7c3aed 100%); }
         .card-hover { transition: all 0.3s ease; }
         .card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
@@ -30,6 +31,19 @@ $pendingTopUps = array_slice(getAllTopUps(), 0, 5);
         .stat-card-2 { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
         .stat-card-3 { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
         .stat-card-4 { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+        .chart-container { position: relative; height: 300px; }
+        .loading-spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -142,7 +156,12 @@ $pendingTopUps = array_slice(getAllTopUps(), 0, 5);
                             <span class="text-sm text-gray-600">Doanh thu</span>
                         </div>
                     </div>
-                    <canvas id="revenueChart" height="300"></canvas>
+                    <div class="chart-container">
+                        <div id="revenueChartLoading" class="flex items-center justify-center h-full">
+                            <div class="loading-spinner"></div>
+                        </div>
+                        <canvas id="revenueChart" style="display: none;"></canvas>
+                    </div>
                 </div>
 
                 <!-- Order Status Chart -->
@@ -155,7 +174,12 @@ $pendingTopUps = array_slice(getAllTopUps(), 0, 5);
                             <option>Hôm nay</option>
                         </select>
                     </div>
-                    <canvas id="orderChart" height="300"></canvas>
+                    <div class="chart-container">
+                        <div id="orderChartLoading" class="flex items-center justify-center h-full">
+                            <div class="loading-spinner"></div>
+                        </div>
+                        <canvas id="orderChart" style="display: none;"></canvas>
+                    </div>
                 </div>
             </div>
 
@@ -292,73 +316,108 @@ $pendingTopUps = array_slice(getAllTopUps(), 0, 5);
         </main>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        // Revenue Chart
-        const revenueCtx = document.getElementById('revenueChart').getContext('2d');
-        new Chart(revenueCtx, {
-            type: 'line',
-            data: {
-                labels: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
-                datasets: [{
-                    label: 'Doanh thu',
-                    data: [12000000, 15000000, 8000000, 22000000, 18000000, 25000000, 20000000],
-                    borderColor: '#3B82F6',
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                    borderWidth: 3,
-                    fill: true,
-                    tension: 0.4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
+        // Simulate loading delay for better UX
+        setTimeout(() => {
+            initializeCharts();
+        }, 500);
+
+        function initializeCharts() {
+            // Revenue Chart
+            const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+            document.getElementById('revenueChartLoading').style.display = 'none';
+            document.getElementById('revenueChart').style.display = 'block';
+            
+            new Chart(revenueCtx, {
+                type: 'line',
+                data: {
+                    labels: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
+                    datasets: [{
+                        label: 'Doanh thu',
+                        data: [12000000, 15000000, 8000000, 22000000, 18000000, 25000000, 20000000],
+                        borderColor: '#3B82F6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#3B82F6',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 6
+                    }]
                 },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            callback: function(value) {
-                                return new Intl.NumberFormat('vi-VN', {
-                                    style: 'currency',
-                                    currency: 'VND'
-                                }).format(value);
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return new Intl.NumberFormat('vi-VN', {
+                                        style: 'currency',
+                                        currency: 'VND',
+                                        notation: 'compact'
+                                    }).format(value);
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            }
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    }
+                }
+            });
+
+            // Order Status Chart
+            const orderCtx = document.getElementById('orderChart').getContext('2d');
+            document.getElementById('orderChartLoading').style.display = 'none';
+            document.getElementById('orderChart').style.display = 'block';
+            
+            new Chart(orderCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Hoàn thành', 'Đang xử lý', 'Chờ xử lý', 'Đã hủy'],
+                    datasets: [{
+                        data: [<?php echo $stats['activeServices']; ?>, 15, <?php echo $stats['pendingOrders']; ?>, 5],
+                        backgroundColor: ['#10B981', '#F59E0B', '#3B82F6', '#EF4444'],
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true,
+                                font: {
+                                    size: 12
+                                }
                             }
                         }
                     }
                 }
-            }
-        });
-
-        // Order Status Chart
-        const orderCtx = document.getElementById('orderChart').getContext('2d');
-        new Chart(orderCtx, {
-            type: 'doughnut',
-            data: {
-                labels: ['Hoàn thành', 'Đang xử lý', 'Chờ xử lý', 'Đã hủy'],
-                datasets: [{
-                    data: [<?php echo $stats['activeServices']; ?>, 15, <?php echo $stats['pendingOrders']; ?>, 5],
-                    backgroundColor: ['#10B981', '#F59E0B', '#3B82F6', '#EF4444'],
-                    borderWidth: 0
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            padding: 20,
-                            usePointStyle: true
-                        }
-                    }
-                }
-            }
-        });
+            });
+        }
     </script>
 </body>
 </html>

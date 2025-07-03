@@ -20,15 +20,50 @@ $packageType = $_GET['type'] ?? 'all'; // all, trial, official
     <title>Gói dịch vụ - VPS Việt Nam Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        body { font-family: 'Inter', sans-serif; }
         .gradient-bg { background: linear-gradient(135deg, #1e3a8a 0%, #3730a3 50%, #7c3aed 100%); }
         .card-hover { transition: all 0.3s ease; }
         .card-hover:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        .loading-spinner {
+            border: 4px solid #f3f4f6;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body class="bg-gray-50">
     <!-- Header -->
     <?php include 'includes/header.php'; ?>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="bg-white rounded-2xl p-8 text-center">
+            <div class="loading-spinner mx-auto mb-4"></div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Đang xử lý đơn hàng...</h3>
+            <p class="text-gray-600">Vui lòng chờ trong giây lát</p>
+        </div>
+    </div>
 
     <!-- Hero Section -->
     <section class="gradient-bg text-white py-16">
@@ -531,6 +566,30 @@ $packageType = $_GET['type'] ?? 'all'; // all, trial, official
         </div>
     </div>
 
+    <!-- Success Modal -->
+    <div id="successModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+            <div class="p-6 text-center">
+                <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-check text-2xl text-green-600"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-900 mb-2">Đặt hàng thành công!</h2>
+                <p class="text-gray-600 mb-6">
+                    Đơn hàng của bạn đã được tạo và đang được xử lý. 
+                    Thông tin dịch vụ sẽ được gửi đến email trong vòng 15-30 phút.
+                </p>
+                <div class="flex space-x-3">
+                    <button onclick="closeSuccessModal()" class="flex-1 py-3 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200">
+                        Đóng
+                    </button>
+                    <a href="orders.php" class="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-4 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 text-center">
+                        Xem đơn hàng
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         let selectedPackageId = null;
         let selectedPackageType = null;
@@ -647,8 +706,15 @@ $packageType = $_GET['type'] ?? 'all'; // all, trial, official
             document.getElementById('orderModal').classList.add('hidden');
         }
 
+        function closeSuccessModal() {
+            document.getElementById('successModal').classList.add('hidden');
+        }
+
         function submitOrder(event) {
             event.preventDefault();
+            
+            // Show loading overlay
+            document.getElementById('loadingOverlay').classList.remove('hidden');
             
             const formData = new FormData(event.target);
             formData.append('package_id', selectedPackageId);
@@ -660,15 +726,19 @@ $packageType = $_GET['type'] ?? 'all'; // all, trial, official
             })
             .then(response => response.json())
             .then(data => {
+                // Hide loading overlay
+                document.getElementById('loadingOverlay').classList.add('hidden');
+                
                 if (data.success) {
-                    alert('Đặt hàng thành công! Chúng tôi sẽ xử lý đơn hàng và gửi thông tin dịch vụ đến email của bạn trong vòng 15-30 phút.');
                     closeOrderModal();
-                    window.location.href = 'orders.php';
+                    document.getElementById('successModal').classList.remove('hidden');
                 } else {
                     alert('Lỗi: ' + data.message);
                 }
             })
             .catch(error => {
+                // Hide loading overlay
+                document.getElementById('loadingOverlay').classList.add('hidden');
                 alert('Có lỗi xảy ra. Vui lòng thử lại.');
             });
         }
