@@ -560,6 +560,30 @@ if (isset($_SESSION['user_id'])) {
         </div>
     </div>
 
+    <!-- Success Modal -->
+    <div id="successModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+            <div class="p-6 text-center">
+                <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-check text-2xl text-green-600"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-900 mb-2">Đặt hàng thành công!</h2>
+                <p class="text-gray-600 mb-6">
+                    Đơn hàng của bạn đã được tạo và đang được xử lý. 
+                    Thông tin dịch vụ sẽ được gửi đến email trong vòng 15-30 phút.
+                </p>
+                <div class="flex space-x-3">
+                    <button onclick="closeSuccessModal()" class="flex-1 py-3 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200">
+                        Đóng
+                    </button>
+                    <a href="orders.php" class="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-4 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 text-center">
+                        Xem đơn hàng
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         let selectedPackageId = null;
         let selectedPackageType = null;
@@ -649,6 +673,10 @@ if (isset($_SESSION['user_id'])) {
             document.getElementById('orderModal').classList.add('hidden');
         }
 
+        function closeSuccessModal() {
+            document.getElementById('successModal').classList.add('hidden');
+        }
+
         function submitOrder(event) {
             event.preventDefault();
             
@@ -663,9 +691,8 @@ if (isset($_SESSION['user_id'])) {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('Đặt hàng thành công! Chúng tôi sẽ xử lý đơn hàng và gửi thông tin dịch vụ đến email của bạn trong vòng 15-30 phút.');
                     closeOrderModal();
-                    window.location.href = 'orders.php';
+                    document.getElementById('successModal').classList.remove('hidden');
                 } else {
                     alert('Lỗi: ' + data.message);
                 }

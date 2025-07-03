@@ -153,7 +153,7 @@ $orders = getUserOrders($_SESSION['user_id']);
 
     <!-- Order Details Modal -->
     <div id="orderDetailsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 hidden">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div class="p-6">
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-2xl font-bold text-gray-900">Chi tiết đơn hàng</h2>
@@ -192,8 +192,40 @@ $orders = getUserOrders($_SESSION['user_id']);
 
         function copyToClipboard(text) {
             navigator.clipboard.writeText(text).then(() => {
-                alert('Đã sao chép: ' + text);
+                // Show success feedback
+                const button = event.target.closest('button');
+                const originalIcon = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-check text-green-600"></i>';
+                setTimeout(() => {
+                    button.innerHTML = originalIcon;
+                }, 2000);
             });
+        }
+
+        function togglePassword(orderId, password) {
+            const passwordElement = document.getElementById('password-' + orderId);
+            const eyeElement = document.getElementById('eye-' + orderId);
+            
+            if (passwordElement.textContent === '••••••••') {
+                passwordElement.textContent = password;
+                eyeElement.className = 'fas fa-eye-slash';
+            } else {
+                passwordElement.textContent = '••••••••';
+                eyeElement.className = 'fas fa-eye';
+            }
+        }
+
+        function toggleProxyPassword(orderId, password) {
+            const passwordElement = document.getElementById('proxy-password-' + orderId);
+            const eyeElement = document.getElementById('proxy-eye-' + orderId);
+            
+            if (passwordElement.textContent === '••••••••') {
+                passwordElement.textContent = password;
+                eyeElement.className = 'fas fa-eye-slash';
+            } else {
+                passwordElement.textContent = '••••••••';
+                eyeElement.className = 'fas fa-eye';
+            }
         }
     </script>
 </body>
