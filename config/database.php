@@ -5,15 +5,25 @@ define('DB_NAME', 'vps_marketplace');
 define('DB_USER', 'root');
 define('DB_PASS', '');
 
+// Set proper encoding
+header('Content-Type: text/html; charset=UTF-8');
+ini_set('default_charset', 'UTF-8');
+mb_internal_encoding('UTF-8');
+
 // Error reporting for debugging (disable in production)
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
 try {
-    $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4", DB_USER, DB_PASS);
+    $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4", DB_USER, DB_PASS, [
+        PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"
+    ]);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
     $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
+    
+    // Set connection charset
+    $pdo->exec("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
 } catch(PDOException $e) {
     error_log("Database connection failed: " . $e->getMessage());
     die("Kết nối database thất bại. Vui lòng thử lại sau.");
@@ -40,7 +50,7 @@ function createTables() {
             verification_documents TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        )");
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         
         // VPS Packages table - Phân biệt VPS Trial và VPS Chính hãng
         $pdo->exec("CREATE TABLE IF NOT EXISTS vps_packages (
@@ -66,7 +76,7 @@ function createTables() {
             status ENUM('active', 'inactive', 'out_of_stock') DEFAULT 'active',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        )");
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         
         // Proxy Packages table
         $pdo->exec("CREATE TABLE IF NOT EXISTS proxy_packages (
@@ -87,7 +97,7 @@ function createTables() {
             status ENUM('active', 'inactive', 'out_of_stock') DEFAULT 'active',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        )");
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         
         // Orders table
         $pdo->exec("CREATE TABLE IF NOT EXISTS orders (
@@ -108,7 +118,7 @@ function createTables() {
             completed_at TIMESTAMP NULL,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        )");
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         
         // VPS Info table
         $pdo->exec("CREATE TABLE IF NOT EXISTS vps_info (
@@ -134,7 +144,7 @@ function createTables() {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
-        )");
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         
         // Proxy Info table
         $pdo->exec("CREATE TABLE IF NOT EXISTS proxy_info (
@@ -152,7 +162,7 @@ function createTables() {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
-        )");
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         
         // Suppliers table
         $pdo->exec("CREATE TABLE IF NOT EXISTS suppliers (
@@ -171,7 +181,7 @@ function createTables() {
             status ENUM('active', 'inactive') DEFAULT 'active',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        )");
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         
         // Inventory table
         $pdo->exec("CREATE TABLE IF NOT EXISTS inventory (
@@ -186,7 +196,7 @@ function createTables() {
             selling_price DECIMAL(15,2) NOT NULL,
             last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE
-        )");
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         
         // Customer reviews table
         $pdo->exec("CREATE TABLE IF NOT EXISTS reviews (
@@ -205,7 +215,7 @@ function createTables() {
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
             FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
-        )");
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         
         // Affiliate system table
         $pdo->exec("CREATE TABLE IF NOT EXISTS affiliates (
@@ -221,7 +231,7 @@ function createTables() {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        )");
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         
         // Affiliate commissions table
         $pdo->exec("CREATE TABLE IF NOT EXISTS affiliate_commissions (
@@ -237,7 +247,7 @@ function createTables() {
             FOREIGN KEY (affiliate_id) REFERENCES affiliates(id) ON DELETE CASCADE,
             FOREIGN KEY (referred_user_id) REFERENCES users(id) ON DELETE CASCADE,
             FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
-        )");
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         
         // Top-up requests table
         $pdo->exec("CREATE TABLE IF NOT EXISTS topup_requests (
@@ -253,7 +263,7 @@ function createTables() {
             processed_at TIMESTAMP NULL,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        )");
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         
         // Bank info table
         $pdo->exec("CREATE TABLE IF NOT EXISTS bank_info (
@@ -266,7 +276,7 @@ function createTables() {
             status ENUM('active', 'inactive') DEFAULT 'active',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        )");
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         
         // System settings table
         $pdo->exec("CREATE TABLE IF NOT EXISTS system_settings (
@@ -275,7 +285,7 @@ function createTables() {
             setting_value TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        )");
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         
         // Transactions table
         $pdo->exec("CREATE TABLE IF NOT EXISTS transactions (
@@ -290,7 +300,7 @@ function createTables() {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        )");
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         
         // Support tickets table
         $pdo->exec("CREATE TABLE IF NOT EXISTS support_tickets (
@@ -303,7 +313,7 @@ function createTables() {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        )");
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         
         // Support ticket messages table
         $pdo->exec("CREATE TABLE IF NOT EXISTS support_messages (
@@ -316,7 +326,7 @@ function createTables() {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (ticket_id) REFERENCES support_tickets(id) ON DELETE CASCADE,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-        )");
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         
         // Server monitoring table
         $pdo->exec("CREATE TABLE IF NOT EXISTS server_monitoring (
@@ -331,7 +341,7 @@ function createTables() {
             status ENUM('online', 'offline', 'maintenance') DEFAULT 'online',
             checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (vps_info_id) REFERENCES vps_info(id) ON DELETE CASCADE
-        )");
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         
     } catch (Exception $e) {
         error_log("Database creation error: " . $e->getMessage());
@@ -419,7 +429,7 @@ function insertDefaultData() {
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM bank_info");
         $stmt->execute();
         if ($stmt->fetchColumn() == 0) {
-            // Insert default bank info with VietQR bank IDs
+            // Insert default bank info with VietQR bank IDs - FIX ENCODING
             $banks = [
                 ['Vietcombank', '0123456789', 'CONG TY VPS VIET NAM', 'Chi nhánh Hà Nội', 'vietcombank'],
                 ['Techcombank', '9876543210', 'CONG TY VPS VIET NAM', 'Chi nhánh TP.HCM', 'techcombank'],
@@ -449,7 +459,15 @@ function insertDefaultData() {
             ['auto_delivery_enabled', '1'],
             ['review_moderation', '1'],
             ['maintenance_mode', '0'],
-            ['vietqr_enabled', '1']
+            ['vietqr_enabled', '1'],
+            ['smtp_enabled', '0'],
+            ['smtp_host', ''],
+            ['smtp_port', '587'],
+            ['smtp_username', ''],
+            ['smtp_password', ''],
+            ['smtp_encryption', 'tls'],
+            ['smtp_from_email', 'noreply@vpsvietnam.com'],
+            ['smtp_from_name', 'VPS Việt Nam Pro']
         ];
         
         foreach ($settings as $setting) {

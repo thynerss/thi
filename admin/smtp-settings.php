@@ -14,28 +14,56 @@ $error = '';
 
 // Handle SMTP settings update
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $settings = [
-        'smtp_host' => sanitizeInput($_POST['smtp_host']),
-        'smtp_port' => (int)$_POST['smtp_port'],
-        'smtp_username' => sanitizeInput($_POST['smtp_username']),
-        'smtp_password' => sanitizeInput($_POST['smtp_password']),
-        'smtp_encryption' => $_POST['smtp_encryption'],
-        'smtp_from_email' => sanitizeInput($_POST['smtp_from_email']),
-        'smtp_from_name' => sanitizeInput($_POST['smtp_from_name']),
-        'smtp_enabled' => isset($_POST['smtp_enabled']) ? '1' : '0'
-    ];
-    
-    $allSuccess = true;
-    foreach ($settings as $key => $value) {
-        if (!setSystemSetting($key, $value)) {
-            $allSuccess = false;
+    if (isset($_POST['test_smtp'])) {
+        // Test SMTP
+        $testEmail = sanitizeInput($_POST['test_email']);
+        if (empty($testEmail) || !filter_var($testEmail, FILTER_VALIDATE_EMAIL)) {
+            $error = 'Email test không hợp lệ';
+        } else {
+            $subject = "Test SMTP - VPS Việt Nam Pro";
+            $message = "
+            <html>
+            <head><meta charset='UTF-8'></head>
+            <body>
+                <h2>🎉 SMTP Test Thành Công!</h2>
+                <p>Hệ thống SMTP đã được cấu hình đúng và hoạt động bình thường.</p>
+                <p><strong>Thời gian test:</strong> " . date('d/m/Y H:i:s') . "</p>
+                <p><strong>VPS Việt Nam Pro Team</strong></p>
+            </body>
+            </html>
+            ";
+            
+            if (sendSMTPEmail($testEmail, $subject, $message, true)) {
+                $success = 'Email test đã được gửi thành công đến ' . $testEmail;
+            } else {
+                $error = 'Không thể gửi email test. Vui lòng kiểm tra cấu hình SMTP.';
+            }
         }
-    }
-    
-    if ($allSuccess) {
-        $success = 'Cập nhật cài đặt SMTP thành công!';
     } else {
-        $error = 'Có lỗi xảy ra khi cập nhật cài đặt SMTP!';
+        // Update SMTP settings
+        $settings = [
+            'smtp_host' => sanitizeInput($_POST['smtp_host']),
+            'smtp_port' => (int)$_POST['smtp_port'],
+            'smtp_username' => sanitizeInput($_POST['smtp_username']),
+            'smtp_password' => sanitizeInput($_POST['smtp_password']),
+            'smtp_encryption' => $_POST['smtp_encryption'],
+            'smtp_from_email' => sanitizeInput($_POST['smtp_from_email']),
+            'smtp_from_name' => sanitizeInput($_POST['smtp_from_name']),
+            'smtp_enabled' => isset($_POST['smtp_enabled']) ? '1' : '0'
+        ];
+        
+        $allSuccess = true;
+        foreach ($settings as $key => $value) {
+            if (!setSystemSetting($key, $value)) {
+                $allSuccess = false;
+            }
+        }
+        
+        if ($allSuccess) {
+            $success = 'Cập nhật cài đặt SMTP thành công!';
+        } else {
+            $error = 'Có lỗi xảy ra khi cập nhật cài đặt SMTP!';
+        }
     }
 }
 
@@ -59,6 +87,10 @@ $currentSettings = [
     <title>Cài đặt SMTP - VPS & Proxy Việt Nam</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
 </head>
 <body class="bg-gray-50">
     <!-- Sidebar -->
@@ -240,14 +272,22 @@ $currentSettings = [
 
                         <!-- Test Email -->
                         <div class="border-t pt-6">
-                            <div class="flex items-center justify-between">
-                                <div>
-                                    <h3 class="text-lg font-semibold text-gray-900">Kiểm tra cấu hình</h3>
-                                    <p class="text-sm text-gray-600">Gửi email thử nghiệm để kiểm tra cấu hình SMTP</p>
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Kiểm tra cấu hình</h3>
+                            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                                <div class="flex items-center space-x-2">
+                                    <i class="fas fa-info-circle text-yellow-600"></i>
+                                    <p class="text-yellow-800 text-sm">Lưu cài đặt trước khi test email</p>
                                 </div>
-                                <button type="button" onclick="sendTestEmail()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors duration-200">
-                                    <i class="fas fa-paper-plane mr-2"></i>
-                                    Gửi email thử
+                            </div>
+                            <div class="flex items-center space-x-4">
+                                <div class="flex-1">
+                                    <input type="email" name="test_email" id="test_email" 
+                                           class="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                           placeholder="Nhập email để test">
+                                </div>
+                                <button type="submit" name="test_smtp" class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors duration-200 flex items-center space-x-2">
+                                    <i class="fas fa-paper-plane"></i>
+                                    <span>Gửi email test</span>
                                 </button>
                             </div>
                         </div>
@@ -327,14 +367,6 @@ $currentSettings = [
             document.getElementById('smtp_host').value = 'smtp.mail.yahoo.com';
             document.getElementById('smtp_port').value = '587';
             document.getElementById('smtp_encryption').value = 'tls';
-        }
-
-        function sendTestEmail() {
-            const testEmail = prompt('Nhập email để gửi thử nghiệm:');
-            if (testEmail) {
-                // Here you would implement the test email functionality
-                alert('Tính năng gửi email thử nghiệm sẽ được triển khai trong phiên bản tiếp theo.');
-            }
         }
     </script>
 </body>

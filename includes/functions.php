@@ -353,7 +353,157 @@ function getProxyInfo($orderId) {
     }
 }
 
-// Email functions
+// Enhanced SMTP Email functions
+function sendSMTPEmail($to, $subject, $message, $isHTML = true) {
+    try {
+        // Get SMTP settings
+        $smtpEnabled = getSystemSetting('smtp_enabled') === '1';
+        
+        if (!$smtpEnabled) {
+            // Fallback to PHP mail()
+            return sendBasicEmail($to, $subject, $message, $isHTML);
+        }
+        
+        $smtpHost = getSystemSetting('smtp_host');
+        $smtpPort = getSystemSetting('smtp_port') ?: 587;
+        $smtpUsername = getSystemSetting('smtp_username');
+        $smtpPassword = getSystemSetting('smtp_password');
+        $smtpEncryption = getSystemSetting('smtp_encryption') ?: 'tls';
+        $fromEmail = getSystemSetting('smtp_from_email') ?: 'noreply@vpsvietnam.com';
+        $fromName = getSystemSetting('smtp_from_name') ?: 'VPS Việt Nam Pro';
+        
+        if (empty($smtpHost) || empty($smtpUsername) || empty($smtpPassword)) {
+            error_log("SMTP settings incomplete");
+            return sendBasicEmail($to, $subject, $message, $isHTML);
+        }
+        
+        // Create socket connection
+        $socket = fsockopen($smtpHost, $smtpPort, $errno, $errstr, 30);
+        if (!$socket) {
+            error_log("SMTP connection failed: $errstr ($errno)");
+            return sendBasicEmail($to, $subject, $message, $isHTML);
+        }
+        
+        // Read server response
+        $response = fgets($socket, 515);
+        if (substr($response, 0, 3) != '220') {
+            error_log("SMTP server not ready: $response");
+            fclose($socket);
+            return sendBasicEmail($to, $subject, $message, $isHTML);
+        }
+        
+        // Send EHLO
+        fputs($socket, "EHLO " . $_SERVER['HTTP_HOST'] . "\r\n");
+        $response = fgets($socket, 515);
+        
+        // Start TLS if required
+        if ($smtpEncryption === 'tls') {
+            fputs($socket, "STARTTLS\r\n");
+            $response = fgets($socket, 515);
+            if (substr($response, 0, 3) != '220') {
+                error_log("STARTTLS failed: $response");
+                fclose($socket);
+                return sendBasicEmail($to, $subject, $message, $isHTML);
+            }
+            
+            // Enable crypto
+            if (!stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
+                error_log("TLS encryption failed");
+                fclose($socket);
+                return sendBasicEmail($to, $subject, $message, $isHTML);
+            }
+            
+            // Send EHLO again after TLS
+            fputs($socket, "EHLO " . $_SERVER['HTTP_HOST'] . "\r\n");
+            $response = fgets($socket, 515);
+        }
+        
+        // Authenticate
+        fputs($socket, "AUTH LOGIN\r\n");
+        $response = fgets($socket, 515);
+        if (substr($response, 0, 3) != '334') {
+            error_log("AUTH LOGIN failed: $response");
+            fclose($socket);
+            return sendBasicEmail($to, $subject, $message, $isHTML);
+        }
+        
+        fputs($socket, base64_encode($smtpUsername) . "\r\n");
+        $response = fgets($socket, 515);
+        if (substr($response, 0, 3) != '334') {
+            error_log("Username authentication failed: $response");
+            fclose($socket);
+            return sendBasicEmail($to, $subject, $message, $isHTML);
+        }
+        
+        fputs($socket, base64_encode($smtpPassword) . "\r\n");
+        $response = fgets($socket, 515);
+        if (substr($response, 0, 3) != '235') {
+            error_log("Password authentication failed: $response");
+            fclose($socket);
+            return sendBasicEmail($to, $subject, $message, $isHTML);
+        }
+        
+        // Send email
+        fputs($socket, "MAIL FROM: <$fromEmail>\r\n");
+        $response = fgets($socket, 515);
+        
+        fputs($socket, "RCPT TO: <$to>\r\n");
+        $response = fgets($socket, 515);
+        
+        fputs($socket, "DATA\r\n");
+        $response = fgets($socket, 515);
+        
+        // Email headers
+        $headers = "From: $fromName <$fromEmail>\r\n";
+        $headers .= "Reply-To: $fromEmail\r\n";
+        $headers .= "MIME-Version: 1.0\r\n";
+        if ($isHTML) {
+            $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+        } else {
+            $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
+        }
+        $headers .= "Content-Transfer-Encoding: 8bit\r\n";
+        $headers .= "Date: " . date('r') . "\r\n";
+        $headers .= "Subject: =?UTF-8?B?" . base64_encode($subject) . "?=\r\n";
+        
+        // Send email content
+        fputs($socket, $headers . "\r\n" . $message . "\r\n.\r\n");
+        $response = fgets($socket, 515);
+        
+        // Quit
+        fputs($socket, "QUIT\r\n");
+        fclose($socket);
+        
+        return substr($response, 0, 3) == '250';
+        
+    } catch (Exception $e) {
+        error_log("SMTP Error: " . $e->getMessage());
+        return sendBasicEmail($to, $subject, $message, $isHTML);
+    }
+}
+
+function sendBasicEmail($to, $subject, $message, $isHTML = true) {
+    try {
+        $fromEmail = getSystemSetting('smtp_from_email') ?: 'noreply@vpsvietnam.com';
+        $fromName = getSystemSetting('smtp_from_name') ?: 'VPS Việt Nam Pro';
+        
+        $headers = "From: $fromName <$fromEmail>\r\n";
+        $headers .= "Reply-To: $fromEmail\r\n";
+        $headers .= "MIME-Version: 1.0\r\n";
+        if ($isHTML) {
+            $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+        } else {
+            $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
+        }
+        $headers .= "Content-Transfer-Encoding: 8bit\r\n";
+        
+        return mail($to, $subject, $message, $headers);
+    } catch (Exception $e) {
+        error_log("Basic email error: " . $e->getMessage());
+        return false;
+    }
+}
+
 function sendVPSInfoEmail($orderId) {
     try {
         $order = getOrderById($orderId);
@@ -367,47 +517,77 @@ function sendVPSInfoEmail($orderId) {
         $message = "
         <html>
         <head>
+            <meta charset='UTF-8'>
             <title>Thông tin VPS</title>
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background: linear-gradient(135deg, #1e3a8a 0%, #7c3aed 100%); color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+                .content { background: #f8f9fa; padding: 20px; border-radius: 0 0 8px 8px; }
+                .info-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+                .info-table td { padding: 12px; border: 1px solid #ddd; }
+                .info-table td:first-child { background: #e9ecef; font-weight: bold; width: 30%; }
+                .alert { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0; }
+                .footer { text-align: center; margin-top: 30px; color: #666; }
+            </style>
         </head>
         <body>
-            <h2>Thông tin VPS của bạn</h2>
-            <p>Xin chào {$order['username']},</p>
-            <p>VPS của bạn đã được thiết lập thành công. Dưới đây là thông tin truy cập:</p>
-            
-            <table border='1' style='border-collapse: collapse; width: 100%;'>
-                <tr><td><strong>Mã đơn hàng:</strong></td><td>{$order['order_code']}</td></tr>
-                <tr><td><strong>IP Server:</strong></td><td>{$vpsInfo['server_ip']}</td></tr>
-                <tr><td><strong>Username:</strong></td><td>{$vpsInfo['username']}</td></tr>
-                <tr><td><strong>Password:</strong></td><td>{$vpsInfo['password']}</td></tr>
-                <tr><td><strong>SSH Port:</strong></td><td>{$vpsInfo['ssh_port']}</td></tr>
-                <tr><td><strong>OS:</strong></td><td>{$vpsInfo['os_template']}</td></tr>
-                <tr><td><strong>Datacenter:</strong></td><td>{$vpsInfo['datacenter']}</td></tr>
-            </table>
-            
-            " . ($vpsInfo['control_panel_url'] ? "<p><strong>Control Panel:</strong> <a href='{$vpsInfo['control_panel_url']}'>{$vpsInfo['control_panel_url']}</a></p>" : "") . "
-            " . ($vpsInfo['control_panel_user'] ? "<p><strong>Panel User:</strong> {$vpsInfo['control_panel_user']}</p>" : "") . "
-            " . ($vpsInfo['control_panel_pass'] ? "<p><strong>Panel Password:</strong> {$vpsInfo['control_panel_pass']}</p>" : "") . "
-            
-            <p><strong>Lưu ý quan trọng:</strong></p>
-            <ul>
-                <li>Vui lòng thay đổi mật khẩu sau lần đăng nhập đầu tiên</li>
-                <li>Backup dữ liệu quan trọng thường xuyên</li>
-                <li>Liên hệ support nếu cần hỗ trợ</li>
-            </ul>
-            
-            " . ($vpsInfo['additional_info'] ? "<p><strong>Thông tin bổ sung:</strong><br>{$vpsInfo['additional_info']}</p>" : "") . "
-            
-            <p>Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi!</p>
-            <p>VPS Việt Nam Pro Team</p>
+            <div class='container'>
+                <div class='header'>
+                    <h1>🎉 VPS của bạn đã sẵn sàng!</h1>
+                    <p>Cảm ơn bạn đã tin tưởng VPS Việt Nam Pro</p>
+                </div>
+                
+                <div class='content'>
+                    <h2>Xin chào {$order['username']},</h2>
+                    <p>VPS của bạn đã được thiết lập thành công và sẵn sàng sử dụng. Dưới đây là thông tin truy cập:</p>
+                    
+                    <table class='info-table'>
+                        <tr><td>Mã đơn hàng</td><td>{$order['order_code']}</td></tr>
+                        <tr><td>IP Server</td><td><strong>{$vpsInfo['server_ip']}</strong></td></tr>
+                        <tr><td>Username</td><td><strong>{$vpsInfo['username']}</strong></td></tr>
+                        <tr><td>Password</td><td><strong>{$vpsInfo['password']}</strong></td></tr>
+                        <tr><td>SSH Port</td><td>{$vpsInfo['ssh_port']}</td></tr>
+                        <tr><td>Hệ điều hành</td><td>{$vpsInfo['os_template']}</td></tr>
+                        <tr><td>Datacenter</td><td>{$vpsInfo['datacenter']}</td></tr>
+                    </table>
+                    
+                    " . ($vpsInfo['control_panel_url'] ? "
+                    <h3>🎛️ Control Panel</h3>
+                    <table class='info-table'>
+                        <tr><td>URL</td><td><a href='{$vpsInfo['control_panel_url']}'>{$vpsInfo['control_panel_url']}</a></td></tr>
+                        " . ($vpsInfo['control_panel_user'] ? "<tr><td>Username</td><td>{$vpsInfo['control_panel_user']}</td></tr>" : "") . "
+                        " . ($vpsInfo['control_panel_pass'] ? "<tr><td>Password</td><td>{$vpsInfo['control_panel_pass']}</td></tr>" : "") . "
+                    </table>
+                    " : "") . "
+                    
+                    <div class='alert'>
+                        <h3>⚠️ Lưu ý quan trọng:</h3>
+                        <ul>
+                            <li>Vui lòng thay đổi mật khẩu sau lần đăng nhập đầu tiên</li>
+                            <li>Backup dữ liệu quan trọng thường xuyên</li>
+                            <li>Cập nhật hệ điều hành và phần mềm định kỳ</li>
+                            <li>Liên hệ support nếu cần hỗ trợ kỹ thuật</li>
+                        </ul>
+                    </div>
+                    
+                    " . ($vpsInfo['additional_info'] ? "
+                    <h3>📋 Thông tin bổ sung:</h3>
+                    <p>" . nl2br(htmlspecialchars($vpsInfo['additional_info'])) . "</p>
+                    " : "") . "
+                    
+                    <div class='footer'>
+                        <p>Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi!</p>
+                        <p><strong>VPS Việt Nam Pro Team</strong></p>
+                        <p>Email: support@vpsvietnam.com | Website: vpsvietnam.com</p>
+                    </div>
+                </div>
+            </div>
         </body>
         </html>
         ";
         
-        $headers = "MIME-Version: 1.0" . "\r\n";
-        $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
-        $headers .= "From: " . getSystemSetting('contact_email') . "\r\n";
-        
-        return mail($to, $subject, $message, $headers);
+        return sendSMTPEmail($to, $subject, $message, true);
     } catch (Exception $e) {
         error_log("Error in sendVPSInfoEmail: " . $e->getMessage());
         return false;
@@ -427,45 +607,95 @@ function sendProxyInfoEmail($orderId) {
         $message = "
         <html>
         <head>
+            <meta charset='UTF-8'>
             <title>Thông tin Proxy</title>
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background: linear-gradient(135deg, #059669 0%, #3b82f6 100%); color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+                .content { background: #f8f9fa; padding: 20px; border-radius: 0 0 8px 8px; }
+                .info-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+                .info-table td { padding: 12px; border: 1px solid #ddd; }
+                .info-table td:first-child { background: #e9ecef; font-weight: bold; width: 30%; }
+                .usage-guide { background: #e7f3ff; border: 1px solid #b3d9ff; padding: 15px; border-radius: 5px; margin: 20px 0; }
+                .footer { text-align: center; margin-top: 30px; color: #666; }
+            </style>
         </head>
         <body>
-            <h2>Thông tin Proxy của bạn</h2>
-            <p>Xin chào {$order['username']},</p>
-            <p>Proxy của bạn đã được thiết lập thành công. Dưới đây là thông tin truy cập:</p>
-            
-            <table border='1' style='border-collapse: collapse; width: 100%;'>
-                <tr><td><strong>Mã đơn hàng:</strong></td><td>{$order['order_code']}</td></tr>
-                <tr><td><strong>Proxy IP:</strong></td><td>{$proxyInfo['proxy_ip']}</td></tr>
-                <tr><td><strong>Port:</strong></td><td>{$proxyInfo['proxy_port']}</td></tr>
-                <tr><td><strong>Username:</strong></td><td>{$proxyInfo['username']}</td></tr>
-                <tr><td><strong>Password:</strong></td><td>{$proxyInfo['password']}</td></tr>
-                <tr><td><strong>Protocol:</strong></td><td>" . strtoupper($proxyInfo['protocol']) . "</td></tr>
-                <tr><td><strong>Location:</strong></td><td>{$proxyInfo['location']}</td></tr>
-            </table>
-            
-            <p><strong>Cách sử dụng:</strong></p>
-            <ul>
-                <li>Cấu hình proxy trong trình duyệt hoặc ứng dụng</li>
-                <li>Sử dụng thông tin trên để kết nối</li>
-                <li>Kiểm tra IP sau khi kết nối để đảm bảo proxy hoạt động</li>
-            </ul>
-            
-            " . ($proxyInfo['additional_info'] ? "<p><strong>Thông tin bổ sung:</strong><br>{$proxyInfo['additional_info']}</p>" : "") . "
-            
-            <p>Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi!</p>
-            <p>VPS Việt Nam Pro Team</p>
+            <div class='container'>
+                <div class='header'>
+                    <h1>🛡️ Proxy của bạn đã sẵn sàng!</h1>
+                    <p>Cảm ơn bạn đã tin tưởng VPS Việt Nam Pro</p>
+                </div>
+                
+                <div class='content'>
+                    <h2>Xin chào {$order['username']},</h2>
+                    <p>Proxy của bạn đã được thiết lập thành công và sẵn sàng sử dụng. Dưới đây là thông tin truy cập:</p>
+                    
+                    <table class='info-table'>
+                        <tr><td>Mã đơn hàng</td><td>{$order['order_code']}</td></tr>
+                        <tr><td>Proxy IP</td><td><strong>{$proxyInfo['proxy_ip']}</strong></td></tr>
+                        <tr><td>Port</td><td><strong>{$proxyInfo['proxy_port']}</strong></td></tr>
+                        <tr><td>Username</td><td><strong>{$proxyInfo['username']}</strong></td></tr>
+                        <tr><td>Password</td><td><strong>{$proxyInfo['password']}</strong></td></tr>
+                        <tr><td>Protocol</td><td>" . strtoupper($proxyInfo['protocol']) . "</td></tr>
+                        <tr><td>Location</td><td>{$proxyInfo['location']}</td></tr>
+                    </table>
+                    
+                    <div class='usage-guide'>
+                        <h3>📖 Hướng dẫn sử dụng:</h3>
+                        <ol>
+                            <li>Mở cài đặt proxy trong trình duyệt hoặc ứng dụng</li>
+                            <li>Chọn loại proxy: " . strtoupper($proxyInfo['protocol']) . "</li>
+                            <li>Nhập địa chỉ IP: <strong>{$proxyInfo['proxy_ip']}</strong></li>
+                            <li>Nhập Port: <strong>{$proxyInfo['proxy_port']}</strong></li>
+                            <li>Nhập Username và Password như trên</li>
+                            <li>Lưu cài đặt và kiểm tra kết nối</li>
+                        </ol>
+                    </div>
+                    
+                    " . ($proxyInfo['additional_info'] ? "
+                    <h3>📋 Thông tin bổ sung:</h3>
+                    <p>" . nl2br(htmlspecialchars($proxyInfo['additional_info'])) . "</p>
+                    " : "") . "
+                    
+                    <div class='footer'>
+                        <p>Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi!</p>
+                        <p><strong>VPS Việt Nam Pro Team</strong></p>
+                        <p>Email: support@vpsvietnam.com | Website: vpsvietnam.com</p>
+                    </div>
+                </div>
+            </div>
         </body>
         </html>
         ";
         
-        $headers = "MIME-Version: 1.0" . "\r\n";
-        $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
-        $headers .= "From: " . getSystemSetting('contact_email') . "\r\n";
-        
-        return mail($to, $subject, $message, $headers);
+        return sendSMTPEmail($to, $subject, $message, true);
     } catch (Exception $e) {
         error_log("Error in sendProxyInfoEmail: " . $e->getMessage());
+        return false;
+    }
+}
+
+// Test SMTP function
+function testSMTPConnection() {
+    try {
+        $testEmail = getSystemSetting('smtp_from_email') ?: 'test@vpsvietnam.com';
+        $subject = "Test SMTP Connection - " . date('Y-m-d H:i:s');
+        $message = "
+        <html>
+        <body>
+            <h2>SMTP Test Email</h2>
+            <p>This is a test email to verify SMTP configuration.</p>
+            <p>Sent at: " . date('Y-m-d H:i:s') . "</p>
+            <p>From: VPS Việt Nam Pro</p>
+        </body>
+        </html>
+        ";
+        
+        return sendSMTPEmail($testEmail, $subject, $message, true);
+    } catch (Exception $e) {
+        error_log("SMTP test error: " . $e->getMessage());
         return false;
     }
 }
@@ -746,7 +976,7 @@ function generateTransferContent($userId) {
 }
 
 function sanitizeInput($input) {
-    return htmlspecialchars(strip_tags(trim($input)));
+    return htmlspecialchars(strip_tags(trim($input)), ENT_QUOTES, 'UTF-8');
 }
 
 function redirectTo($url) {
@@ -914,6 +1144,40 @@ function updateOrderStatus($orderId, $status) {
         return $stmt->execute([$status, $completedAt, $orderId]);
     } catch (Exception $e) {
         error_log("Error in updateOrderStatus: " . $e->getMessage());
+        return false;
+    }
+}
+
+function updateUser($userId, $username, $email, $balance, $status, $role) {
+    global $pdo;
+    try {
+        $stmt = $pdo->prepare("UPDATE users SET username = ?, email = ?, balance = ?, status = ?, role = ? WHERE id = ?");
+        return $stmt->execute([$username, $email, $balance, $status, $role, $userId]);
+    } catch (Exception $e) {
+        error_log("Error in updateUser: " . $e->getMessage());
+        return false;
+    }
+}
+
+function addUserBalance($userId, $amount, $note) {
+    global $pdo;
+    try {
+        $pdo->beginTransaction();
+        
+        // Update user balance
+        $stmt = $pdo->prepare("UPDATE users SET balance = balance + ? WHERE id = ?");
+        $stmt->execute([$amount, $userId]);
+        
+        // Create transaction record
+        $transactionId = 'ADM' . time() . mt_rand(100, 999);
+        $stmt = $pdo->prepare("INSERT INTO transactions (user_id, amount, type, status, payment_method, transaction_id, description) VALUES (?, ?, 'deposit', 'completed', 'Admin thêm', ?, ?)");
+        $stmt->execute([$userId, $amount, $transactionId, $note ?: 'Admin thêm số dư']);
+        
+        $pdo->commit();
+        return true;
+    } catch (Exception $e) {
+        $pdo->rollback();
+        error_log("Error in addUserBalance: " . $e->getMessage());
         return false;
     }
 }
